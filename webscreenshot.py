@@ -62,6 +62,7 @@ main_grp.add_argument('-w', '--workers', help = '<WORKERS> (optional): number of
 main_grp.add_argument('-v', '--verbosity', help = '<VERBOSITY> (optional): verbosity level, repeat it to increase the level { -v INFO, -vv DEBUG } (default verbosity ERROR)', action = 'count', default = 0)
 main_grp.add_argument('--no-error-file', help = '<NO_ERROR_FILE> (optional): do not write a file with the list of URL of failed screenshots (default false)', action = 'store_true', default = False)
 main_grp.add_argument('-z', '--single-output-file', help = '<SINGLE_OUTPUT_FILE> (optional): name of a file which will be the single output of all inputs. Ex. test.png')
+main_grp.add_argument('--timestamp', help = '<ADD_TIMESTAMP_TO_FILENAME> (optional): add a current timestamp to each filename in output files', action = 'store_true', default = False )
 
 proc_grp = parser.add_argument_group('Input processing parameters')
 proc_grp.add_argument('-p', '--port', help = '<PORT> (optional): use the specified port for each target in the input list. Ex: -p 80')
@@ -442,16 +443,24 @@ def craft_output_filename_and_format(url, options):
         Craft the output filename and format
     """
     output_format = options.format if options.renderer == 'phantomjs' else 'png'
-    
+
+    if options.timestamp:
+        timestamp = datetime.datetime.now().strftime("-%Y-%m-%d-%H-%M-%S")
+    else:
+        timestamp = ''
+
     if options.single_output_file:
         if options.single_output_file.lower().endswith('.%s' % output_format):
-            output_filename = os.path.abspath(filter_bad_filename_chars_and_length(options.single_output_file))
+            format_remover = re.compile(re.escape(options.output_format), re.IGNORECASE)
+            filename_prefix = format_remover.sub('', options.single_output_file)
+            cleaned_filename = filter_bad_filename_chars_and_length(filename_prefix)
+            output_filename = os.path.abspath('%s%s.%s'(cleaned_filename, timestamp, output_format))
         else:
-            output_filename = os.path.abspath(filter_bad_filename_chars_and_length('%s.%s' % (options.single_output_file, output_format)))
+            output_filename = os.path.abspath(filter_bad_filename_chars_and_length('%s%s.%s' % (options.single_output_file, timestamp, output_format)))
         
     else:
-        output_filename = os.path.join(options.output_directory, ('%s.%s' % (filter_bad_filename_chars_and_length(url), output_format)))
-    
+        output_filename = os.path.join(options.output_directory, ('%s%s.%s' % (filter_bad_filename_chars_and_length(url), timestamp, output_format)))
+
     return output_format, output_filename
 
 def craft_cmd(url_and_options):
