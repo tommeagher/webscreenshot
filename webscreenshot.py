@@ -63,6 +63,7 @@ main_grp.add_argument('-v', '--verbosity', help = '<VERBOSITY> (optional): verbo
 main_grp.add_argument('--no-error-file', help = '<NO_ERROR_FILE> (optional): do not write a file with the list of URL of failed screenshots (default false)', action = 'store_true', default = False)
 main_grp.add_argument('-z', '--single-output-file', help = '<SINGLE_OUTPUT_FILE> (optional): name of a file which will be the single output of all inputs. Ex. test.png')
 main_grp.add_argument('--timestamp', help = '<ADD_TIMESTAMP_TO_FILENAME> (optional): add a current timestamp to each filename in output files', action = 'store_true', default = False )
+main_grp.add_argument('--prefix', help = '<ADD_PREFIX_TO_FILENAME> (optional): add an arbitrary prefix to each filename in output files', default = None )
 
 proc_grp = parser.add_argument_group('Input processing parameters')
 proc_grp.add_argument('-p', '--port', help = '<PORT> (optional): use the specified port for each target in the input list. Ex: -p 80')
@@ -379,7 +380,17 @@ def parse_targets(options):
                 target_list.append(final_uri)
 
                 logger_gen.info("'%s' has been formatted as '%s' with supplied overriding options" % (line, final_uri))
-    
+    prefix_list = []
+    if options.prefix is None:
+        for item in range(0,len(target_list)):
+            prefix_list.append('')
+    elif type(options.prefix)==str:
+        for item in range(0, len(target_list)):
+            prefix_list.append(options.prefix)
+    elif type(options.prefix)==list:
+        prefix_list = options.prefix
+    options.prefix = prefix_list
+
     return target_list
 
 def craft_bin_path(options, context=CONTEXT_RENDERER):
@@ -438,7 +449,7 @@ def launch_cmd(logger, url, cmd_parameters, options, context):
     
     return execution_retval
 
-def craft_output_filename_and_format(url, options):
+def craft_output_filename_and_format(url, prefix, options):
     """
         Craft the output filename and format
     """
@@ -459,7 +470,7 @@ def craft_output_filename_and_format(url, options):
             output_filename = os.path.abspath(filter_bad_filename_chars_and_length('%s%s.%s' % (options.single_output_file, timestamp, output_format)))
         
     else:
-        output_filename = os.path.join(options.output_directory, ('%s%s.%s' % (filter_bad_filename_chars_and_length(url), timestamp, output_format)))
+        output_filename = os.path.join(options.output_directory, ('%s%s%s.%s' % (prefix, filter_bad_filename_chars_and_length(url), timestamp, output_format)))
 
     return output_format, output_filename
 
@@ -469,13 +480,13 @@ def craft_cmd(url_and_options):
     """
     global logger_output, WEBSCREENSHOT_JS, SHELL_EXECUTION_OK, SHELL_EXECUTION_ERROR
     
-    url, options = url_and_options
+    url, prefix, options = url_and_options
     
     logger_url = logging.getLogger("%s" % url)
     logger_url.addHandler(logger_output)
     logger_url.setLevel(options.log_level)
     
-    output_format, output_filename = craft_output_filename_and_format(url, options)
+    output_format, output_filename = craft_output_filename_and_format(url, prefix, options)
         
     # PhantomJS renderer
     if options.renderer == 'phantomjs':
@@ -581,7 +592,7 @@ def take_screenshot(url_list, options):
     
     pool = multiprocessing.Pool(processes=int(options.workers), initializer=init_worker)
     
-    taken_screenshots = [r for r in pool.imap(func=craft_cmd, iterable=izip(url_list, itertools.repeat(options)))]
+    taken_screenshots = [r for r in pool.imap(func=craft_cmd, iterable=izip(url_list, options.prefix, itertools.repeat(options)))]
     
     pool.close()
     pool.join()
